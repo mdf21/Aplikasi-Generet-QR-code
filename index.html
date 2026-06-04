@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pembuat QR Code Sekolah</title>
+        <!-- Contoh CSP ringan: batasi sumber eksternal namun masih mengizinkan skrip inline untuk kompatibilitas lokal.
+            Sesuaikan lebih ketat untuk produksi dan hindari 'unsafe-inline' jika Anda memindahkan skrip ke file terpisah. -->
+        <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com; font-src https: data:; img-src 'self' data: https:; script-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com 'unsafe-inline' 'unsafe-eval';">
     <!-- Tailwind CSS untuk styling yang modern dan responsif -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -206,14 +209,38 @@
     </div>
 
     <script>
-        // Logika untuk menampilkan nama file saat logo dipilih
+        // Logika untuk menampilkan nama file saat logo dipilih dan melakukan validasi MIME/ukuran
         const logoInput = document.getElementById('logoInput');
         const fileNameDisplay = document.getElementById('fileName');
 
         logoInput.addEventListener('change', function(e) {
             if (e.target.files.length > 0) {
-                fileNameDisplay.textContent = `File terpilih: ${e.target.files[0].name}`;
+                const file = e.target.files[0];
+                // Tolak SVG (bisa menyertakan JS) dan hanya izinkan PNG/JPEG
+                const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
+                if (file.type === 'image/svg+xml') {
+                    showError('Format SVG tidak diizinkan. Gunakan PNG atau JPG.');
+                    e.target.value = '';
+                    fileNameDisplay.classList.add('hidden');
+                    return;
+                }
+                if (!allowed.includes(file.type)) {
+                    showError('Format file tidak didukung. Gunakan PNG atau JPG.');
+                    e.target.value = '';
+                    fileNameDisplay.classList.add('hidden');
+                    return;
+                }
+                // Ukuran sudah juga diperiksa saat pembacaan, tetapi lakukan cek awal di sini
+                if (file.size > 2 * 1024 * 1024) {
+                    showError('Ukuran file logo terlalu besar. Maksimal 2MB.');
+                    e.target.value = '';
+                    fileNameDisplay.classList.add('hidden');
+                    return;
+                }
+
+                fileNameDisplay.textContent = `File terpilih: ${file.name}`;
                 fileNameDisplay.classList.remove('hidden');
+                hideError();
             } else {
                 fileNameDisplay.classList.add('hidden');
             }
@@ -280,6 +307,12 @@
 
         // --- FUNGSI BANTU MEMUAT GAMBAR AMAN ---
         const loadImage = (file) => new Promise((resolve, reject) => {
+            // Validasi MIME di sini juga untuk keamanan
+            const allowed = ['image/png', 'image/jpeg', 'image/jpg'];
+            if (!allowed.includes(file.type) || file.type === 'image/svg+xml') {
+                reject(new Error('Format file tidak didukung. Hanya PNG/JPEG diizinkan.'));
+                return;
+            }
             if (file.size > 2 * 1024 * 1024) {
                 reject(new Error("Ukuran file logo terlalu besar. Maksimal ukuran adalah 2MB."));
                 return;
@@ -467,33 +500,63 @@
             history.forEach(item => {
                 const tr = document.createElement('tr');
                 tr.className = 'bg-white border-b hover:bg-slate-50 transition-colors';
-                
-                const safeText = document.createElement('div');
-                safeText.textContent = item.text;
-                const safeDesc = document.createElement('div');
-                safeDesc.textContent = item.description || '-';
 
-                tr.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap text-xs text-slate-500">${item.date}</td>
-                    <td class="px-6 py-4 font-medium text-slate-900 break-all max-w-xs">${safeText.innerHTML}</td>
-                    <td class="px-6 py-4 text-slate-600 text-sm break-words max-w-[150px]">${safeDesc.innerHTML}</td>
-                    <td class="px-6 py-4">
-                        <div class="flex items-center gap-3">
-                            <button onclick="useHistory(${item.id})" class="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1" title="Isi ulang ke form">
-                                <i class="fa-solid fa-rotate-left"></i> Pakai
-                            </button>
-                            <button onclick="downloadPastQR(${item.id})" class="text-green-600 hover:text-green-800 font-medium text-sm flex items-center gap-1" title="Unduh langsung QR ini (Tanpa Logo)">
-                                <i class="fa-solid fa-download"></i> Unduh (Polos)
-                            </button>
-                            <button onclick="openEditModal(${item.id})" class="text-amber-500 hover:text-amber-700 font-medium text-sm flex items-center gap-1" title="Edit Data">
-                                <i class="fa-solid fa-pen"></i> Edit
-                            </button>
-                            <button onclick="deleteHistoryItem(${item.id})" class="text-red-500 hover:text-red-700 font-medium text-sm flex items-center gap-1" title="Hapus Riwayat Ini">
-                                <i class="fa-solid fa-trash"></i> Hapus
-                            </button>
-                        </div>
-                    </td>
-                `;
+                const tdDate = document.createElement('td');
+                tdDate.className = 'px-6 py-4 whitespace-nowrap text-xs text-slate-500';
+                tdDate.textContent = item.date;
+
+                const tdText = document.createElement('td');
+                tdText.className = 'px-6 py-4 font-medium text-slate-900 break-all max-w-xs';
+                const divText = document.createElement('div');
+                divText.textContent = item.text;
+                tdText.appendChild(divText);
+
+                const tdDesc = document.createElement('td');
+                tdDesc.className = 'px-6 py-4 text-slate-600 text-sm break-words max-w-[150px]';
+                const divDesc = document.createElement('div');
+                divDesc.textContent = item.description || '-';
+                tdDesc.appendChild(divDesc);
+
+                const tdActions = document.createElement('td');
+                tdActions.className = 'px-6 py-4';
+                const actionsWrap = document.createElement('div');
+                actionsWrap.className = 'flex items-center gap-3';
+
+                const btnUse = document.createElement('button');
+                btnUse.className = 'text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1';
+                btnUse.title = 'Isi ulang ke form';
+                btnUse.innerHTML = '<i class="fa-solid fa-rotate-left"></i> Pakai';
+                btnUse.addEventListener('click', () => useHistory(item.id));
+
+                const btnDownload = document.createElement('button');
+                btnDownload.className = 'text-green-600 hover:text-green-800 font-medium text-sm flex items-center gap-1';
+                btnDownload.title = 'Unduh langsung QR ini (Tanpa Logo)';
+                btnDownload.innerHTML = '<i class="fa-solid fa-download"></i> Unduh (Polos)';
+                btnDownload.addEventListener('click', () => downloadPastQR(item.id));
+
+                const btnEdit = document.createElement('button');
+                btnEdit.className = 'text-amber-500 hover:text-amber-700 font-medium text-sm flex items-center gap-1';
+                btnEdit.title = 'Edit Data';
+                btnEdit.innerHTML = '<i class="fa-solid fa-pen"></i> Edit';
+                btnEdit.addEventListener('click', () => openEditModal(item.id));
+
+                const btnDelete = document.createElement('button');
+                btnDelete.className = 'text-red-500 hover:text-red-700 font-medium text-sm flex items-center gap-1';
+                btnDelete.title = 'Hapus Riwayat Ini';
+                btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i> Hapus';
+                btnDelete.addEventListener('click', () => deleteHistoryItem(item.id));
+
+                actionsWrap.appendChild(btnUse);
+                actionsWrap.appendChild(btnDownload);
+                actionsWrap.appendChild(btnEdit);
+                actionsWrap.appendChild(btnDelete);
+                tdActions.appendChild(actionsWrap);
+
+                tr.appendChild(tdDate);
+                tr.appendChild(tdText);
+                tr.appendChild(tdDesc);
+                tr.appendChild(tdActions);
+
                 tbody.appendChild(tr);
             });
         }
