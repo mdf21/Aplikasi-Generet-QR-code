@@ -1,4 +1,4 @@
-# Pembuat QR Code Sekolah
+# Pembuat QR Code Sekolah Sederhana
 
 Aplikasi web sederhana untuk membuat QR Code kustom dengan opsi menambahkan logo, memilih warna, dan menyimpan riwayat pembuatan lokal.
 
