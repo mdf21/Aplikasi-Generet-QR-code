@@ -38,7 +38,3 @@ Aplikasi web sederhana untuk membuat QR Code kustom dengan opsi menambahkan logo
 **File utama**
 - `index.html` — antarmuka dan logika utama.
 
-Jika Anda ingin, saya bisa:
-- Menambahkan SRI pada tag CDN dan/atau mem-bundle dependensi ke folder `vendor/`.
-- Memindahkan skrip inline ke `app.js` dan memperketat CSP.
-
